@@ -147,7 +147,7 @@ class MotorControllerNode(Node):
         return False
     
     def send_motor_commands(self):
-        """send motor commands to robot via serial at ~20Hz"""
+        """send motor commands to robot via serial at ~100Hz"""
         while self.running and rclpy.ok():
             # check for timeout before sending
             self.check_timeout()
@@ -164,7 +164,7 @@ class MotorControllerNode(Node):
                 except Exception as e:
                     self.get_logger().error(f'Motor command serial write error: {str(e)}')
                     self.init_serial()
-            time.sleep(0.05)  # 20Hz
+            time.sleep(0.01)  # 100Hz
     
     def send_imu_requests(self):
         """send IMU data requests to robot via serial at 50Hz"""
