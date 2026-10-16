@@ -1,21 +1,27 @@
-"""Static version of the HW1 route: the moves are written out by hand instead of planned.
+"""HW1 waypoint route: turn -> drive -> turn for every waypoint, timed open loop.
 
-Self-contained (does not use velocity_control). Each move publishes its calibrated [L, R]
-on /motor_commands for the time the calibration gives, then the robot is held stopped for
-settle_time before the next move. Only works for the HW1 waypoints.
+The moves come from the waypoints file (waypoints_to_moves.py). Each move publishes its
+calibrated [L, R] on /motor_commands for the time the calibration gives, then the robot is
+held stopped for settle_time before the next move. Does not use velocity_control.
 
-Start at (0, 0) facing +x (0 deg). Turns: left = counter-clockwise, right = clockwise.
+Start at the first waypoint, facing its heading (0 deg = +x). Turns: left = counter-clockwise,
+right = clockwise.
 
     ros2 run robot_control static_waypoints                           # needs motor_control running
     ros2 run robot_control static_waypoints --ros-args -p dry_run:=true
+    ros2 run robot_control static_waypoints --ros-args -p waypoints_file:=/home/ubuntu/other.txt
 """
 import math
+import os
 import time
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import Float32MultiArray
+
+from robot_control.waypoints_to_moves import read_waypoints, waypoints_to_moves
 
 MAX_COMMAND = 0.5  # motor_control clips commands to [-0.5, 0.5]
 PUBLISH_PERIOD = 0.05  # s between repeated commands during a move (motor_control stops after 0.15 s without one)
@@ -26,53 +32,43 @@ PUBLISH_PERIOD = 0.05  # s between repeated commands during a move (motor_contro
 #   drive: amount in metres,  speed in m/s,   offset in metres
 #   turn : amount in degrees, speed in deg/s, offset in degrees
 # Any value can be overridden for one run, e.g. --ros-args -p turn_right_speed:=250.0
-DRIVE_COMMAND = [0.2475, 0.3]       # [L, R] for straight driving (trimmed to go straight)
+DRIVE_COMMAND = [0.28, 0.3]         # [L, R] for straight driving (trimmed to go straight)
 TURN_LEFT_COMMAND = [-0.5, 0.5]     # [L, R] for spinning left (counter-clockwise)
 TURN_RIGHT_COMMAND = [0.5, -0.5]    # [L, R] for spinning right (clockwise)
 
-DRIVE_SPEED = 0.3836                # m/s    fit of 6 forward runs, 0.15 - 4.8 s
-DRIVE_OFFSET = -0.0129              # m
-TURN_LEFT_SPEED = 288.0             # deg/s  fit of left runs (5 x 0.1 s = 90 deg, ... 1.5 s = 420 deg)
-TURN_LEFT_OFFSET = -11.2            # deg    start-up loss
-TURN_RIGHT_SPEED = 253.0            # deg/s  PROVISIONAL: left's start-up loss, 90 deg in 0.40 s
-TURN_RIGHT_OFFSET = -11.2           # deg    PROVISIONAL
+DRIVE_SPEED = 0.4401                # m/s    t = 2.272 d + 0.108
+DRIVE_OFFSET = -0.04754             # m
+TURN_LEFT_SPEED = 336.70            # deg/s  t = 0.002970 deg + 0.100
+TURN_LEFT_OFFSET = -33.67           # deg
+TURN_RIGHT_SPEED = 336.70           # deg/s  assumed same as left
+TURN_RIGHT_OFFSET = -33.67          # deg
 
 SETTLE_TIME = 0.5                   # s fully stopped after every move
 START_DELAY = 2.0                   # s before the first move
 # ==========================================================================================
 
-# Headings are in degrees, 0 = facing +x, counter-clockwise positive. The waypoint file rounds
-# them to 2-decimal radians (1.57 = 90 deg, -0.78 = -45 deg); these are the intended angles.
+# Default waypoints file: config/waypoints.txt as installed with the package (see setup.py).
+WAYPOINTS_FILE = os.path.join(get_package_share_directory('robot_control'), 'config', 'waypoints.txt')
 
-# HW1 waypoints (x m, y m, heading deg), only used for printing
-WAYPOINTS_DEG = [
-    (0.0, 0.0, 0),       # start
-    (1.0, 0.0, 0),
-    (1.0, 1.0, 90),
-    (2.0, 1.0, 0),
-    (2.0, 2.0, -90),
-    (1.0, 1.0, -45),
-    (0.0, 0.0, 0),
-]
-WAYPOINTS = [(x, y, math.radians(theta)) for x, y, theta in WAYPOINTS_DEG]
-
-# ('drive', metres, waypoint) or ('turn', from_heading_deg, to_heading_deg, waypoint)
-MOVES = [
-    ('drive', 1.0, 1),                  # (0,0) -> (1,0)              wp1 (1, 0, 0)
-    ('turn', 0, 90, 2),                 # left 90
-    ('drive', 1.0, 2),                  # -> (1,1), facing 90          wp2 (1, 1, 90)
-    ('turn', 90, 0, 3),                 # right 90
-    ('drive', 1.0, 3),                  # -> (2,1)                     wp3 (2, 1, 0)
-    ('turn', 0, 90, 4),                 # left 90
-    ('drive', 1.0, 4),                  # -> (2,2)
-    ('turn', 90, -90, 4),               # right 180                    wp4 (2, 2, -90)
-    ('turn', -90, -135, 5),             # right 45
-    ('drive', math.sqrt(2), 5),         # -> (1,1)
-    ('turn', -135, -45, 5),             # left 90                      wp5 (1, 1, -45)
-    ('turn', -45, -135, 6),             # right 90
-    ('drive', math.sqrt(2), 6),         # -> (0,0)
-    ('turn', -135, 0, 6),               # left 135                     wp6 (0, 0, 0)
-]
+# Reference: the moves waypoints_to_moves produces for the HW1 waypoints.
+# ('drive', metres, waypoint) or ('turn', from_heading_deg, to_heading_deg, waypoint);
+# headings in degrees, 0 = facing +x, counter-clockwise positive.
+# MOVES = [
+#     ('drive', 1.0, 1),                  # (0,0) -> (1,0)              wp1 (1, 0, 0)
+#     ('turn', 0, 90, 2),                 # left 90
+#     ('drive', 1.0, 2),                  # -> (1,1), facing 90          wp2 (1, 1, 90)
+#     ('turn', 90, 0, 3),                 # right 90
+#     ('drive', 1.0, 3),                  # -> (2,1)                     wp3 (2, 1, 0)
+#     ('turn', 0, 90, 4),                 # left 90
+#     ('drive', 1.0, 4),                  # -> (2,2)
+#     ('turn', 90, -90, 4),               # right 180                    wp4 (2, 2, -90)
+#     ('turn', -90, -135, 5),             # right 45
+#     ('drive', math.sqrt(2), 5),         # -> (1,1)
+#     ('turn', -135, -45, 5),             # left 90                      wp5 (1, 1, -45)
+#     ('turn', -45, -135, 6),             # right 90
+#     ('drive', math.sqrt(2), 6),         # -> (0,0)
+#     ('turn', -135, 0, 6),               # left 135                     wp6 (0, 0, 0)
+# ]
 
 
 def wrap_angle(angle):
@@ -81,7 +77,7 @@ def wrap_angle(angle):
 
 
 def moves_to_steps(moves):
-    """Convert MOVES to (kind, amount, waypoint_index) steps.
+    """Convert moves to (kind, amount, waypoint_index) steps.
 
     kind 'drive' (amount in metres) or 'turn' (amount in radians, + = left, - = right).
     """
@@ -118,6 +114,8 @@ class StaticWaypointsNode(Node):
         self.turn_right_offset = self.declare_parameter('turn_right_offset', TURN_RIGHT_OFFSET).value
         self.settle_time = self.declare_parameter('settle_time', SETTLE_TIME).value
         self.start_delay = self.declare_parameter('start_delay', START_DELAY).value
+        self.waypoints_file = os.path.expanduser(
+            self.declare_parameter('waypoints_file', WAYPOINTS_FILE).value)
         # only print the plan, don't move
         self.dry_run = self.declare_parameter('dry_run', False).value
 
@@ -155,9 +153,9 @@ class StaticWaypointsNode(Node):
             return f'drive {amount:.3f} m'
         return f'turn {"left " if amount > 0 else "right"} {math.degrees(abs(amount)):6.1f} deg'
 
-    def log_plan(self, steps):
-        self.get_logger().info('Waypoints (static, hand-written moves):')
-        for index, (x, y, theta) in enumerate(WAYPOINTS_DEG):
+    def log_plan(self, waypoints, steps):
+        self.get_logger().info(f'Waypoints from {self.waypoints_file}:')
+        for index, (x, y, theta) in enumerate(waypoints):
             label = 'start' if index == 0 else f'wp {index}'
             self.get_logger().info(f'  {label:>5}: x={x:+.2f} y={y:+.2f} heading={theta:+d} deg')
         self.get_logger().info('Plan:')
@@ -196,8 +194,9 @@ class StaticWaypointsNode(Node):
             pass
 
     def run(self):
-        steps = moves_to_steps(MOVES)
-        self.log_plan(steps)
+        waypoints = read_waypoints(self.waypoints_file)  # [(x, y, heading_deg), ...]
+        steps = moves_to_steps(waypoints_to_moves(waypoints))
+        self.log_plan(waypoints, steps)
         if self.dry_run:
             self.get_logger().info('dry_run is set: not moving')
             return
@@ -208,7 +207,7 @@ class StaticWaypointsNode(Node):
         current_waypoint = 0
         for kind, amount, index in steps:
             if index != current_waypoint:
-                x, y, theta = WAYPOINTS_DEG[index]
+                x, y, theta = waypoints[index]
                 self.get_logger().info(f'Heading to waypoint {index}: ({x}, {y}, {theta} deg)')
                 current_waypoint = index
             command, duration = self.step_command_and_duration(kind, amount)
