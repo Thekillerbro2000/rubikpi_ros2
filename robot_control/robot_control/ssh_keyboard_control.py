@@ -21,30 +21,23 @@ MAX_COMMAND = 0.5  # motor_control clips commands to [-0.5, 0.5]
 MAX_RUN_DURATION = 30.0  # longest timed run, in seconds
 
 # [L, R] sent while each key is held; every entry can be changed at runtime with Enter.
-# A terminal can't report two keys held at once, so combined directions get their own keys.
 DEFAULT_COMMANDS = {
-    'w': [0.2475, 0.3],     # forward (trimmed to go straight)
+    'w': [0.28, 0.3],       # forward (trimmed to go straight, same as waypoint_follower)
     's': [-0.2475, -0.3],   # backward
-    'a': [-0.5, 0.5],     # spin left
-    'd': [0.5, -0.5],     # spin right
-    'q': [0.15, 0.35],    # forward-left curve
-    'e': [0.35, 0.15],    # forward-right curve
-    'z': [-0.15, -0.35],  # backward-left curve
-    'c': [-0.35, -0.15],  # backward-right curve
+    'a': [-0.5, 0.5],       # spin left
+    'd': [0.5, -0.5],       # spin right
 }
 
-KEY_NAMES = {
-    'w': 'forward', 's': 'backward', 'a': 'spin left', 'd': 'spin right',
-    'q': 'forward-left', 'e': 'forward-right', 'z': 'backward-left', 'c': 'backward-right',
-}
+KEY_NAMES = {'w': 'forward', 's': 'backward', 'a': 'spin left', 'd': 'spin right'}
 
 HELP = """
 ========================================
    SSH Keyboard Controller (hold a key)
 ----------------------------------------
-    Q  W  E     W/S: forward/backward (or Up/Down)
-    A     D     A/D: spin left/right  (or Left/Right)
-    Z  S  C     Q/E/Z/C: curves (forward/backward + left/right)
+   W / Up    : Forward
+   S / Down  : Backward
+   A / Left  : Spin left
+   D / Right : Spin right
 
    Enter     : show the [L, R] table and edit one key,
                type "key L R" then Enter (e.g. "s -0.28 -0.3");

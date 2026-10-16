@@ -5,7 +5,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    # motor_control + the static HW1 route (static_waypoints, calibration in its own file)
+    # motor_control + the HW1 route (waypoint_follower)
     motor_node = Node(
         package='robot_control',
         executable='motor_control',
@@ -16,8 +16,8 @@ def generate_launch_description():
 
     controller_node = Node(
         package='robot_control',
-        executable='static_waypoints',
-        name='static_waypoints',
+        executable='waypoint_follower',
+        name='waypoint_follower',
         output='screen',
         emulate_tty=True,
     )

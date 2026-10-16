@@ -1,4 +1,4 @@
-"""Turn a waypoints file into a list of moves (used by static_waypoints.py).
+"""Turn a waypoints file into a list of moves (used by waypoint_follower.py).
 
 Waypoint file: one "x, y, theta" per line (metres, metres, radians); the first line is the
 start pose. For each waypoint: turn to face it, drive to it, turn to its heading.

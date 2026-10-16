@@ -33,7 +33,7 @@ setup(
             'keyboard_control = robot_control.keyboard_control:main',
             'ssh_keyboard_control = robot_control.ssh_keyboard_control:main',
             'velocity_control = robot_control.velocity_control:main',
-            'static_waypoints = robot_control.static_waypoints:main',
+            'waypoint_follower = robot_control.waypoint_follower:main',
         ],
     },
 )
