@@ -23,7 +23,7 @@ MAX_RUN_DURATION = 30.0  # longest timed run, in seconds
 # [L, R] sent while each key is held; every entry can be changed at runtime with Enter.
 DEFAULT_COMMANDS = {
     'w': [0.28, 0.3],       # forward (trimmed to go straight, same as waypoint_follower)
-    's': [-0.2475, -0.3],   # backward
+    's': [-0.28, -0.3],     # backward
     'a': [-0.5, 0.5],       # spin left
     'd': [0.5, -0.5],       # spin right
 }
