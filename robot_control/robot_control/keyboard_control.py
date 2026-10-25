@@ -56,10 +56,10 @@ Publishing motor commands on topic: motor_commands
                 self.pressed_keys.add(c)
                 
                 if c == 'w':
-                    self.current_L = 0.3
+                    self.current_L = 0.2370
                     self.current_R = 0.3
                 elif c == 's':
-                    self.current_L = -0.3
+                    self.current_L = -0.245
                     self.current_R = -0.3
                 elif c == 'a':
                     self.current_L = -0.5
